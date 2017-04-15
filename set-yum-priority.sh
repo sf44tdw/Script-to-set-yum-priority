@@ -1,6 +1,7 @@
-﻿#from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
+﻿#!/bin/bash
 
-#!/bin/bash
+#from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
+
 yum -y install yum-priorities
 grep -rl "priority=" /etc/yum.repos.d/ && ( echo -e "Found existing priority setting..exiting!" ;exit 1 )
 echo -e "Please use priority in steps of 5" 
