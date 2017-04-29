@@ -26,15 +26,14 @@ else
        echo "yum found. Use yum."
        MANAGE_COMMAND="yum"
        echo "Install yum-priorities."
-       PRIORITIES_INSTALL_COMMAND="${MANAGE_COMMAND} -y install yum-priorities"
-       `${PRIORITIES_INSTALL_COMMAND}` 
+       yum -y install yum-priorities
     else
        echo "yum not found. Error."
        exit 1
     fi
 fi
 
-REPOLIST_COMMAND="${MANAGE_COMMAND} repolist"
+REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
 
 THIS_DIR=$(cd $(dirname $0);pwd)
 TEMPDIR="${THIS_DIR}/tmp"
@@ -42,6 +41,7 @@ TEMPFILE_1="${TEMPDIR}/repolist1.tmp"
 TEMPFILE_2="${TEMPDIR}/repolist2.tmp"
 TEMPFILE_3="${TEMPDIR}/repolist3.tmp"
 TEMPFILE_4="${TEMPDIR}/repolist4.tmp"
+TEMPFILE_5="${TEMPDIR}/repolist5.tmp"
 rm -rf ${TEMPDIR}
 mkdir ${TEMPDIR}
 
@@ -52,12 +52,13 @@ echo -n ""
 
 `${REPOLIST_COMMAND} > ${TEMPFILE_1}`
 cat ${TEMPFILE_1}|sed -e "s/\*//"> ${TEMPFILE_2}
-cat ${TEMPFILE_2}|sed -e "1,2d"> ${TEMPFILE_3}
+cat ${TEMPFILE_2}|sed -e "1d"|sed -e "/repolist:/d"> ${TEMPFILE_3}
 cat ${TEMPFILE_3}|awk '{print $1}' > ${TEMPFILE_4}
+cat ${TEMPFILE_4}|sed -e "s/\/.*//"> ${TEMPFILE_5}
 
 echo "Enabled yum repos:" 
 echo "=======================" 
-cat ${TEMPFILE_4}
+cat ${TEMPFILE_5}
 echo "=======================" 
 echo
 
@@ -66,7 +67,7 @@ EXIST=`echo $?`
 if [ ${EXIST} -eq 0 ]; then
    echo -e "Found existing priority setting..exiting! Delete it."
    get_priority_info
-   for repo in `cat ${TEMPFILE_4}`
+   for repo in `cat ${TEMPFILE_5}`
    do
            for file in `find ${REPODIR} -type f`
            do
@@ -75,7 +76,7 @@ if [ ${EXIST} -eq 0 ]; then
    done
 fi
 
-for repo in `cat ${TEMPFILE_4}`
+for repo in `cat ${TEMPFILE_5}`
 do
         echo "priority for repo $repo = ?" 
         read priority
