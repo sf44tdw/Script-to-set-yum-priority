@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 #from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
 
