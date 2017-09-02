@@ -4,7 +4,7 @@
 
 REPODIR="/etc/yum.repos.d"
 get_priority_info(){
-  sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
+	sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
 }
 
 MANAGE_COMMAND=""
@@ -78,8 +78,14 @@ fi
 
 for repo in `cat ${TEMPFILE_5}`
 do
-        echo "priority for repo $repo = ?" 
-        read priority
+		priority=""
+		until [[ $priority =~ ^[1-9][0-9]{0,1}$ ]]
+		do
+			echo "priority for repo $repo = ?(1-99)" 
+			read priority
+		done		
+		
+		
         for file in `find ${REPODIR} -type f`
         do
                 sed -i "/\[$repo\]/a\priority=$priority" $file
