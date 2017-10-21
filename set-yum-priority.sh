@@ -51,10 +51,24 @@ echo -e " This helps to incorporate a repo with priority in between if required 
 echo -n "" 
 
 `${REPOLIST_COMMAND} > ${TEMPFILE_1}`
+#cat ${TEMPFILE_1}
+#echo
+
+#リポジトリIDの頭に余計な*があれば除去する。(例:fedoraのdnfコマンド)
 cat ${TEMPFILE_1}|sed -e "s/\*//"> ${TEMPFILE_2}
+#cat ${TEMPFILE_2} && echo
+
+#フィールド名の除去
 cat ${TEMPFILE_2}|sed -e "1d"|sed -e "/repolist:/d"> ${TEMPFILE_3}
+#cat ${TEMPFILE_3} && echo
+
+#リポジトリID抽出
 cat ${TEMPFILE_3}|awk '{print $1}' > ${TEMPFILE_4}
+#cat ${TEMPFILE_4} && echo
+
+#リポジトリIDに要らないスラッシュつき文字列があれば除去する。(例:CentOS7のアーキテクチャ名)
 cat ${TEMPFILE_4}|sed -e "s/\/.*//"> ${TEMPFILE_5}
+#cat ${TEMPFILE_5} && echo
 
 echo "Enabled yum repos:" 
 echo "=======================" 
