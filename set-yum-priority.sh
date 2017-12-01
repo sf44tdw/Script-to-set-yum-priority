@@ -33,6 +33,8 @@ else
     fi
 fi
 
+
+
 REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
 
 THIS_DIR=$(cd $(dirname $0);pwd)
@@ -49,6 +51,9 @@ echo -e "Please use priority in steps of 5"
 echo -e " eg: base extras and updates can have priority 1 , epel can have priority 5 etc" 
 echo -e " This helps to incorporate a repo with priority in between if required in future!" 
 echo -n "" 
+
+#rpmコマンドでリポジトリを追加した直後の場合、リポジトリを追加した旨が表示されることがあるので1回無駄に実行する。
+`${REPOLIST_COMMAND} > /dev/null 2>&1`
 
 `${REPOLIST_COMMAND} > ${TEMPFILE_1}`
 #cat ${TEMPFILE_1}
