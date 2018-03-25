@@ -44,6 +44,7 @@ TEMPFILE_2="${TEMPDIR}/repolist2.tmp"
 TEMPFILE_3="${TEMPDIR}/repolist3.tmp"
 TEMPFILE_4="${TEMPDIR}/repolist4.tmp"
 TEMPFILE_5="${TEMPDIR}/repolist5.tmp"
+TEMPFILE_6="${TEMPDIR}/repolist6.tmp"
 rm -rf ${TEMPDIR}
 mkdir ${TEMPDIR}
 
@@ -75,9 +76,13 @@ cat ${TEMPFILE_3}|awk '{print $1}' > ${TEMPFILE_4}
 cat ${TEMPFILE_4}|sed -e "s/\/.*//"> ${TEMPFILE_5}
 #cat ${TEMPFILE_5} && echo
 
+#リポジトリID重複除去
+cat ${TEMPFILE_5}|sort|uniq> ${TEMPFILE_6}
+#cat ${TEMPFILE_6} && echo
+
 echo "Enabled yum repos:" 
 echo "=======================" 
-cat ${TEMPFILE_5}
+cat ${TEMPFILE_6}
 echo "=======================" 
 echo
 
@@ -86,7 +91,7 @@ EXIST=`echo $?`
 if [ ${EXIST} -eq 0 ]; then
    echo -e "Found existing priority setting..exiting! Delete it."
    get_priority_info
-   for repo in `cat ${TEMPFILE_5}`
+   for repo in `cat ${TEMPFILE_6}`
    do
            for file in `find ${REPODIR} -type f`
            do
@@ -95,7 +100,7 @@ if [ ${EXIST} -eq 0 ]; then
    done
 fi
 
-for repo in `cat ${TEMPFILE_5}`
+for repo in `cat ${TEMPFILE_6}`
 do
 		priority=""
 		until [[ $priority =~ ^[1-9][0-9]{0,1}$ ]]
