@@ -2,10 +2,47 @@
 
 #from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
 
+usage_exit() {
+        echo "Usage: $0 [-e] [-l]" 1>&2
+        echo '有効と設定されているyum/dnfリポジトリの優先順位を設定/表示する。
+        -e 設定(既存の優先順位設定は削除される。)
+        -l 設定済みの優先順位を表示する。未設定の場合は何も表示されない。' 1>&2
+        exit 1
+}
+
 REPODIR="/etc/yum.repos.d"
 get_priority_info(){
 	sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
 }
+
+ENABLE_e="f"
+ENABLE_l="f"
+
+
+while getopts "el" OPT
+do
+    case $OPT in
+        e)  ENABLE_e="t"
+            ;;
+        l)  ENABLE_l="t"
+            ;;
+        :|\?) usage_exit
+            ;;
+    esac
+done
+
+shift $((OPTIND - 1))
+
+
+[ "${ENABLE_l}" = "t" ] && get_priority_info && exit 0
+
+[ "${ENABLE_e}" != "t" ] && usage_exit
+
+#多重起動防止機講
+# 同じ名前のプロセスが起動していたら起動しない。
+_lockfile="/tmp/`basename $0`.lock"
+ln -s /dummy $_lockfile 2> /dev/null || { echo 'Cannot run multiple instance.'  >>${LOGFILE}; exit 9; }
+trap "rm "${_lockfile}"; exit" 1 2 3 15
 
 MANAGE_COMMAND=""
 
@@ -119,3 +156,7 @@ done
 get_priority_info
 
 rm -rf ${TEMPDIR}
+
+rm "${_lockfile}"
+
+exit 0
