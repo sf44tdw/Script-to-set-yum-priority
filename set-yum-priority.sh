@@ -41,7 +41,7 @@ shift $((OPTIND - 1))
 #多重起動防止機講
 # 同じ名前のプロセスが起動していたら起動しない。
 _lockfile="/tmp/`basename $0`.lock"
-ln -s /dummy $_lockfile 2> /dev/null || { echo 'Cannot run multiple instance.'  >>${LOGFILE}; exit 9; }
+ln -s /dummy $_lockfile 2> /dev/null || { echo 'Cannot run multiple instance.'; exit 9; }
 trap "rm "${_lockfile}"; exit" 1 2 3 15
 
 MANAGE_COMMAND=""
