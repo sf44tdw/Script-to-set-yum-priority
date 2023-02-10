@@ -133,7 +133,8 @@ if [ "${EXIST}" -eq 0 ]; then
 	echo -e "Found existing priority setting..exiting! Delete it."
 	get_priority_info
 	find "${REPODIR}" -name "*\.repo" -type f -print0 | while IFS= read -r -d '' file; do
-		sed -i "/^priority=.*$/d" -i "/^priority\s+=\s+.*$/d"  "${file}"
+		sed -i "/^priority=.*$/d" "${file}"
+		sed -i "/^priority\s+=\s+.*$/d" "${file}"
 	done
 fi
 
