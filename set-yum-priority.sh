@@ -52,7 +52,7 @@ ln -s /dummy "${_lockfile}" 2>/dev/null || {
 	echo 'Cannot run multiple instance.'
 	exit 9
 }
-trap 'rm ${_lockfile}; exit' 1 2 3 15
+trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 
 #現状をバックアップ
 
