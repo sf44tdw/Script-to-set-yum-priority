@@ -4,7 +4,7 @@
 
 usage_exit() {
 	echo "Usage: $0 [-e] [-l]" 1>&2
-	echo '有効と設定されているyum/dnfリポジトリの優先順位を設定/表示する。
+	echo '有効と設定されているdnfリポジトリの優先順位を設定/表示する。
         -e 設定(既存の優先順位設定は削除される。)
         -l 設定済みの優先順位を表示する。未設定の場合は何も表示されない。' 1>&2
 	exit 1
@@ -64,24 +64,12 @@ DNF=0
 rpm -q dnf
 DNF="${?}"
 
-YUM=0
-rpm -q yum
-YUM="${?}"
-
 if [ "${DNF}" -eq 0 ]; then
 	echo "dnf found. Use dnf."
 	MANAGE_COMMAND="dnf"
 else
-	echo "dnf not found. Search yum."
-	if [ "${YUM}" -eq 0 ]; then
-		echo "yum found. Use yum."
-		MANAGE_COMMAND="yum"
-		echo "Install yum-priorities."
-		yum -y install yum-priorities
-	else
-		echo "yum not found. Error."
-		exit 1
-	fi
+	echo "dnf not found. Error."
+	exit 1
 fi
 
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
@@ -127,17 +115,6 @@ cat "${TEMPFILE_6}"
 echo "======================="
 echo
 
-grep -rl "priority=" ${REPODIR}
-EXIST="${?}"
-if [ "${EXIST}" -eq 0 ]; then
-	echo -e "Found existing priority setting..exiting! Delete it."
-	get_priority_info
-	find "${REPODIR}" -name "*\.repo" -type f -print0 | while IFS= read -r -d '' file; do
-		sed -i "/^priority=.*$/d" "${file}"
-		sed -i "/^priority\s+=\s+.*$/d" "${file}"
-	done
-fi
-
 #forループにしないとreadが入力待ちにならない。
 for repo in $(cat "${TEMPFILE_6}"); do
 	priority="0"
@@ -156,9 +133,7 @@ for repo in $(cat "${TEMPFILE_6}"); do
 		fi
 	done
 
-	find "${REPODIR}" -name "*\.repo" -type f -print0 | while IFS= read -r -d '' file; do
-		sed -i "/\[${repo}\]/a\priority=${priority}" "${file}"
-	done
+	dnf config-manager --setopt="${repo}.priority=${priority}" --save
 done
 
 get_priority_info
