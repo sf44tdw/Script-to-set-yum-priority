@@ -2,15 +2,30 @@
 
 #from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
 
-usage_exit() {
-	echo "Usage: $0 [-e] [-l]" 1>&2
-	echo '有効と設定されているdnfリポジトリの優先順位を設定/表示する。
-        -e 設定(既存の優先順位設定は削除される。)
-        -l 設定済みの優先順位を表示する。未設定の場合は何も表示されない。' 1>&2
-	exit 1
+
+#このスクリプトの名前。
+readonly MY_NAME="$(basename "${0}")"
+
+#ロックファイルのパス
+_lockfile="/tmp/${MY_NAME}.lock"
+
+function delete_lock_file_and_exit() {
+	local -r EXIT_CODE="${1}"
+	expr "${EXIT_CODE}" + 1 >/dev/null 2>&1
+	local -r ret="${?}"
+	if [ "${ret}" -ge 2 ]; then
+		echo "指定された戻り値が数字ではない。戻り値=${EXIT_CODE}"1 >&2
+		exit 100
+	fi
+	if [ -h "${_lockfile}" ]; then
+		if ! rm -f "${_lockfile}" >/dev/null 2>&1; then
+			echo "ロックファイル削除失敗。戻り値はrmのものになる。ロックファイル=${_lockfile}"1 >&2
+			exit "${?}"
+		fi
+	fi
+	exit "${EXIT_CODE}"
 }
 
-readonly MY_NAME="$(basename "${0}")"
 readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
 readonly MY_PID="${$}"
 
@@ -18,7 +33,15 @@ readonly ETCDIR="/etc"
 readonly REPO_DIR_NAME="yum.repos.d"
 readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
 
-get_priority_info() {
+function usage_exit() {
+	echo "Usage: $0 [-e] [-l]" 1>&2
+	echo '有効と設定されているdnfリポジトリの優先順位を設定/表示する。
+        -e 設定(既存の優先順位設定は削除される。)
+        -l 設定済みの優先順位を表示する。未設定の場合は何も表示されない。' 1>&2
+	exit 0
+}
+
+function get_priority_info() {
 	sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
 }
 
@@ -50,13 +73,13 @@ shift $((OPTIND - 1))
 readonly _lockfile="/tmp/${MY_NAME}.lock"
 ln -s /dummy "${_lockfile}" 2>/dev/null || {
 	echo 'Cannot run multiple instance.'
-	exit 9
+	exit 110
 }
 trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 
 #現状をバックアップ
 
-tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || exit 1
+tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
 
 MANAGE_COMMAND=""
 
@@ -69,7 +92,7 @@ if [ "${DNF}" -eq 0 ]; then
 	MANAGE_COMMAND="dnf"
 else
 	echo "dnf not found. Error."
-	exit 1
+	delete_lock_file_and_exit 2
 fi
 
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
@@ -134,12 +157,11 @@ for repo in $(cat "${TEMPFILE_6}"); do
 	done
 
 	dnf config-manager --setopt="${repo}.priority=${priority}" --save
+	
 done
 
 get_priority_info
 
 rm -rf "${TEMPDIR}"
 
-rm "${_lockfile}"
-
-exit 0
+delete_lock_file_and_exit 0
