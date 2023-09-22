@@ -97,7 +97,7 @@ fi
 
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
 
-readonly TEMPDIR="/tmp/${MY_NAME}_${MY_EXEC_DATE}_${MY_EXEC_DATE}"
+readonly TEMPDIR="/tmp/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}"
 readonly TEMPFILE_1="${TEMPDIR}/repolist1.tmp"
 readonly TEMPFILE_2="${TEMPDIR}/repolist2.tmp"
 readonly TEMPFILE_3="${TEMPDIR}/repolist3.tmp"
