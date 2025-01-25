@@ -156,7 +156,7 @@ cat "${TEMPFILE_4}" | sed -e "s/\/.*//" >"${TEMPFILE_5}"
 #リポジトリID重複除去
 cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
-[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && exit 0
+[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && rm -rf "${TEMPDIR}" && delete_lock_file_and_exit 0
 
 echo "Enabled yum repos:"
 echo "======================="
