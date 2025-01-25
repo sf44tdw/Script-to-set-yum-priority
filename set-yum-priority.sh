@@ -52,7 +52,7 @@ function get_priority_info() {
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
 	echo "======================="
 	echo
-	echo "Priority parameter from repo command."
+	echo "Priority parameter from repo command.(For dnf5 or later.)"
 	echo "======================="
 	for repo in $(cat "${REPOSITORY_LIST}"); do
 		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
@@ -151,6 +151,7 @@ cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
 #現状をバックアップ
 tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
+#dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
 	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
 fi
@@ -181,6 +182,7 @@ for repo in $(cat "${TEMPFILE_6}"); do
 	DNF_RETURN=0
 	dnf config-manager --setopt="${repo}.priority=${priority}" --save 
 	DNF_RETURN="${?}"
+	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
 	if [ "${DNF_RETURN}" -ne 0 ]; then
 		dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
 	fi
