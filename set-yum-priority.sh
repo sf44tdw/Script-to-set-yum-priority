@@ -156,7 +156,7 @@ for repo in $(cat "${TEMPFILE_6}"); do
 		fi
 	done
 
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save
+	dnf config-manager --setopt="${repo}.priority=${priority}" --save || dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
 	
 done
 
