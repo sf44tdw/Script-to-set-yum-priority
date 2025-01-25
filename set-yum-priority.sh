@@ -52,16 +52,13 @@ function get_priority_info() {
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
 	echo "======================="
 	echo
-	local REPOS_INFO_FROM_COMMAND=""
+	echo "Priority parameter from repo command."
+	echo "======================="
 	for repo in $(cat "${REPOSITORY_LIST}"); do
 		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
 		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
- 		REPOS_INFO_FROM_COMMAND+=$(echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }')
- 		REPOS_INFO_FROM_COMMAND+=$'\n'
+ 		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
 	done
-	echo "Priority parameter from repo command."
-	echo "======================="
-	echo "${REPOS_INFO_FROM_COMMAND}"
 	echo "======================="
 	echo
 	return 0
