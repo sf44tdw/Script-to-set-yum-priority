@@ -99,13 +99,6 @@ ln -s /dummy "${_lockfile}" 2>/dev/null || {
 }
 trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 
-#現状をバックアップ
-
-tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
-if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
-fi
-
 MANAGE_COMMAND=""
 
 DNF=0
@@ -158,6 +151,12 @@ cat "${TEMPFILE_4}" | sed -e "s/\/.*//" >"${TEMPFILE_5}"
 cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
 [ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && rm -rf "${TEMPDIR}" && delete_lock_file_and_exit 0
+
+#現状をバックアップ
+tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
+if [ -d "${REPO_OVERRIDE_DIR}" ]; then
+	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
+fi
 
 echo "Enabled yum repos:"
 echo "======================="
