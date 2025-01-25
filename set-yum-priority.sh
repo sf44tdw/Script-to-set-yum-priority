@@ -54,7 +54,7 @@ function get_priority_info() {
 	echo
 	local REPOS_INFO_FROM_COMMAND=""
 	for repo in $(cat "${REPOSITORY_LIST}"); do
-		GET_COMMAND="${COMMAND} repo info ${repo}"
+		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
 		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
  		REPOS_INFO_FROM_COMMAND+=$(echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print repo_id " priority = " $2 }')
  		REPOS_INFO_FROM_COMMAND+=$'\n'
