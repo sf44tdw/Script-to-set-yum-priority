@@ -32,6 +32,7 @@ readonly MY_PID="${$}"
 readonly ETCDIR="/etc"
 readonly REPO_DIR_NAME="yum.repos.d"
 readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
+readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 
 function usage_exit() {
 	echo "Usage: $0 [-e] [-l]" 1>&2
@@ -42,7 +43,24 @@ function usage_exit() {
 }
 
 function get_priority_info() {
-	sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
+	local -r REPOSITORY_LIST="${1}"
+	local -r COMMAND="${2}"
+	local -r PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n)
+	echo "Priority parameter from repo file."
+	echo "======================="
+	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
+	echo "======================="
+	echo
+	echo "Priority parameter from repo command.(For dnf5 or later.)"
+	echo "======================="
+	for repo in $(cat "${REPOSITORY_LIST}"); do
+		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
+		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
+ 		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
+	done
+	echo "======================="
+	echo
+	return 0
 }
 
 ENABLE_e="f"
@@ -64,9 +82,9 @@ done
 
 shift $((OPTIND - 1))
 
-[ "${ENABLE_l}" = "t" ] && get_priority_info && exit 0
-
-[ "${ENABLE_e}" != "t" ] && usage_exit
+if [ "${ENABLE_e}" != "t" ] && [ "${ENABLE_l}" != "t" ]; then
+	usage_exit
+fi
 
 #多重起動防止機講
 # 同じ名前のプロセスが起動していたら起動しない。
@@ -77,19 +95,15 @@ ln -s /dummy "${_lockfile}" 2>/dev/null || {
 }
 trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 
-#現状をバックアップ
-
-tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
-
 MANAGE_COMMAND=""
 
 DNF=0
-rpm -q dnf
-DNF="${?}"
+readonly DNF_PACKAGE_LIST=$(rpm -qa | grep dnf)
+DNF=$(echo "${DNF_PACKAGE_LIST}" | wc -l)
 
-if [ "${DNF}" -eq 0 ]; then
+if [ "${DNF}" -ne 0 ]; then
 	echo "dnf found. Use dnf."
-	MANAGE_COMMAND="dnf"
+	MANAGE_COMMAND=$(which dnf)
 else
 	echo "dnf not found. Error."
 	delete_lock_file_and_exit 2
@@ -132,6 +146,15 @@ cat "${TEMPFILE_4}" | sed -e "s/\/.*//" >"${TEMPFILE_5}"
 #リポジトリID重複除去
 cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
+[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && rm -rf "${TEMPDIR}" && delete_lock_file_and_exit 0
+
+#現状をバックアップ
+tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
+#dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
+if [ -d "${REPO_OVERRIDE_DIR}" ]; then
+	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
+fi
+
 echo "Enabled yum repos:"
 echo "======================="
 cat "${TEMPFILE_6}"
@@ -155,12 +178,16 @@ for repo in $(cat "${TEMPFILE_6}"); do
 			priority="0"
 		fi
 	done
-
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save
-	
+	DNF_RETURN=0
+	dnf config-manager --setopt="${repo}.priority=${priority}" --save 
+	DNF_RETURN="${?}"
+	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
+	if [ "${DNF_RETURN}" -ne 0 ]; then
+		dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
+	fi
 done
 
-get_priority_info
+get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}"
 
 rm -rf "${TEMPDIR}"
 
