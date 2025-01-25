@@ -32,6 +32,7 @@ readonly MY_PID="${$}"
 readonly ETCDIR="/etc"
 readonly REPO_DIR_NAME="yum.repos.d"
 readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
+readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 
 function usage_exit() {
 	echo "Usage: $0 [-e] [-l]" 1>&2
@@ -42,7 +43,19 @@ function usage_exit() {
 }
 
 function get_priority_info() {
-	sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n
+	local -r REPOSITORY_LIST="${1}"
+	local -r COMMAND=="${2}"
+	local -r PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n)
+	local -r =$(echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}" | wc -l)
+	if [ "${DNF}" -ne 0 ]; then
+		echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
+		return 0
+	fi
+	for repo in $(cat "${REPOSITORY_LIST}"); do
+		REPO_INFO_FROM_COMMAND=$("${COMMAND} repo info ${repo}")
+ 		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print repo_id " priority = " $2 }'
+	done
+	return 0
 }
 
 ENABLE_e="f"
@@ -64,8 +77,6 @@ done
 
 shift $((OPTIND - 1))
 
-[ "${ENABLE_l}" = "t" ] && get_priority_info && exit 0
-
 [ "${ENABLE_e}" != "t" ] && usage_exit
 
 #多重起動防止機講
@@ -80,11 +91,15 @@ trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 #現状をバックアップ
 
 tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
+if [ -d "${REPO_OVERRIDE_DIR}"]; then
+	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
+fi
 
 MANAGE_COMMAND=""
 
 DNF=0
-DNF=$(rpm -qa | grep dnf | wc -l)
+readonly DNF_PACKAGE_LIST=$(rpm -qa | grep dnf)
+DNF=$(echo "${DNF_PACKAGE_LIST}" | wc -l)
 
 if [ "${DNF}" -ne 0 ]; then
 	echo "dnf found. Use dnf."
@@ -131,6 +146,8 @@ cat "${TEMPFILE_4}" | sed -e "s/\/.*//" >"${TEMPFILE_5}"
 #リポジトリID重複除去
 cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
+[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && exit 0
+
 echo "Enabled yum repos:"
 echo "======================="
 cat "${TEMPFILE_6}"
@@ -162,7 +179,7 @@ for repo in $(cat "${TEMPFILE_6}"); do
 	fi
 done
 
-get_priority_info
+get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}"
 
 rm -rf "${TEMPDIR}"
 
