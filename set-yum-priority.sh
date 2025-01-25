@@ -154,9 +154,12 @@ for repo in $(cat "${TEMPFILE_6}"); do
 			priority="0"
 		fi
 	done
-
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save || dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
-	
+	DNF_RETURN=0
+	dnf config-manager --setopt="${repo}.priority=${priority}" --save 
+	DNF_RETURN="${?}"
+	if [ "${DNF_RETURN}" -ne 0 ]; then
+		dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
+	fi
 done
 
 get_priority_info
