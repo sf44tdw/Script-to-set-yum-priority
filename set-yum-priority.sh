@@ -112,7 +112,7 @@ DNF=$(echo "${DNF_PACKAGE_LIST}" | wc -l)
 
 if [ "${DNF}" -ne 0 ]; then
 	echo "dnf found. Use dnf."
-	MANAGE_COMMAND="dnf"
+	MANAGE_COMMAND=$(which dnf)
 else
 	echo "dnf not found. Error."
 	delete_lock_file_and_exit 2
