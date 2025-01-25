@@ -46,7 +46,6 @@ function get_priority_info() {
 	local -r REPOSITORY_LIST="${1}"
 	local -r COMMAND="${2}"
 	local -r PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n)
-	local -r FILE_LINES=$(echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}" | wc -l)
 	echo "Priority parameter from repo file."
 	echo "======================="
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
