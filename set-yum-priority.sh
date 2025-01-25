@@ -84,10 +84,9 @@ tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" |
 MANAGE_COMMAND=""
 
 DNF=0
-rpm -q dnf
-DNF="${?}"
+DNF=$(rpm -qa | grep dnf | wc -l)
 
-if [ "${DNF}" -eq 0 ]; then
+if [ "${DNF}" -ne 0 ]; then
 	echo "dnf found. Use dnf."
 	MANAGE_COMMAND="dnf"
 else
