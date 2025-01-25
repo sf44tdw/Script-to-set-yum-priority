@@ -77,7 +77,9 @@ done
 
 shift $((OPTIND - 1))
 
-[ "${ENABLE_e}" != "t" ] && usage_exit
+if [ "${ENABLE_e}" != "t" ] && [ "${ENABLE_l}" != "t" ]; then
+	usage_exit
+fi
 
 #多重起動防止機講
 # 同じ名前のプロセスが起動していたら起動しない。
