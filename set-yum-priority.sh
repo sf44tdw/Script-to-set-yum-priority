@@ -128,7 +128,7 @@ if [ "${DNF}" -ne 0 ]; then
 	MANAGE_COMMAND=$(which dnf)
 else
 	echo "dnf not found. Error."
-	delete_lock_file_and_exit "${TEMPDIR}" 2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
@@ -160,12 +160,23 @@ cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
 [ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && delete_lock_file_and_exit "${TEMPDIR}" 0
 
-#現状をバックアップ
-tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit "${TEMPDIR}" 1
+#現状をバックアップするコマンドを生成。
+TAR_CMD='tar'
+TAR_CMD+=' '
+TAR_CMD+='Jcf'
+TAR_CMD+=' '
+TAR_CMD+='"'
+TAR_CMD+="${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz"
+TAR_CMD+='"'
+TAR_CMD+=' '
+TAR_CMD+="${REPODIR}"
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit "${TEMPDIR}" 1
+	TAR_CMD+=' '
+	TAR_CMD+="${REPO_OVERRIDE_DIR}"
 fi
+#現状をバックアップ。
+eval "${TAR_CMD}" || delete_lock_file_and_exit "${TEMPDIR}" 2
 
 echo "Enabled yum repos:"
 echo "======================="
