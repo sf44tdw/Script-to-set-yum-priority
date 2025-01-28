@@ -2,7 +2,6 @@
 
 #from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
 
-
 #このスクリプトの名前。
 readonly MY_NAME="$(basename "${0}")"
 
@@ -56,7 +55,7 @@ function get_priority_info() {
 	for repo in $(cat "${REPOSITORY_LIST}"); do
 		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
 		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
- 		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
+		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
 	done
 	echo "======================="
 	echo
@@ -179,7 +178,7 @@ for repo in $(cat "${TEMPFILE_6}"); do
 		fi
 	done
 	DNF_RETURN=0
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save 
+	dnf config-manager --setopt="${repo}.priority=${priority}" --save
 	DNF_RETURN="${?}"
 	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
 	if [ "${DNF_RETURN}" -ne 0 ]; then
