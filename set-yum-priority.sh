@@ -20,7 +20,7 @@ readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 function delete_tempdir() {
 	local -r TEMP_DIR_PATH="${1}"
 	if [ -d "${TEMP_DIR_PATH}" ]; then
-		if ! rm -f "${TEMP_DIR_PATH}" ; then
+		if ! rm -rf "${TEMP_DIR_PATH}" ; then
 			echo "作業フォルダ削除失敗。戻り値はrmのものになる。作業フォルダ=${TEMP_DIR_PATH}"1 >&2
 			exit "${?}"
 		fi
