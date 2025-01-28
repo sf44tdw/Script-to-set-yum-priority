@@ -169,11 +169,15 @@ TAR_CMD+='"'
 TAR_CMD+="${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz"
 TAR_CMD+='"'
 TAR_CMD+=' '
+TAR_CMD+='"'
 TAR_CMD+="${REPODIR}"
+TAR_CMD+='"'
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
 	TAR_CMD+=' '
+	TAR_CMD+='"'
 	TAR_CMD+="${REPO_OVERRIDE_DIR}"
+	TAR_CMD+='"'
 fi
 #現状をバックアップ。
 eval "${TAR_CMD}" || delete_lock_file_and_exit "${TEMPDIR}" 2
