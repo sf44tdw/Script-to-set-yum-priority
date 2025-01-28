@@ -176,7 +176,7 @@ if [ -d "${REPO_OVERRIDE_DIR}" ]; then
 	TAR_CMD+="${REPO_OVERRIDE_DIR}"
 fi
 #現状をバックアップ。
-$(eval "${TAR_CMD}") || delete_lock_file_and_exit "${TEMPDIR}" 2
+eval "${TAR_CMD}" || delete_lock_file_and_exit "${TEMPDIR}" 2
 
 echo "Enabled yum repos:"
 echo "======================="
