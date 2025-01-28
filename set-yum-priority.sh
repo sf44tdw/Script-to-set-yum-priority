@@ -8,8 +8,29 @@ readonly MY_NAME="$(basename "${0}")"
 #ロックファイルのパス
 _lockfile="/tmp/${MY_NAME}.lock"
 
+readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
+readonly MY_PID="${$}"
+
+readonly ETCDIR="/etc"
+readonly REPO_DIR_NAME="yum.repos.d"
+readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
+readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
+
+function delete_tempdir() {
+	local -r TEMP_DIR_PATH="${1}"
+	if [ -d "${TEMP_DIR_PATH}" ]; then
+		if ! rm -rf "${TEMP_DIR_PATH}"; then
+			echo "作業フォルダ削除失敗。戻り値はrmのものになる。作業フォルダ=${TEMP_DIR_PATH}"1 >&2
+			exit "${?}"
+		fi
+	fi
+	return 0
+}
+
 function delete_lock_file_and_exit() {
-	local -r EXIT_CODE="${1}"
+	local -r TEMP_DIR_PATH="${1}"
+	delete_tempdir "${TEMP_DIR_PATH}"
+	local -r EXIT_CODE="${2}"
 	expr "${EXIT_CODE}" + 1 >/dev/null 2>&1
 	local -r ret="${?}"
 	if [ "${ret}" -ge 2 ]; then
@@ -24,14 +45,6 @@ function delete_lock_file_and_exit() {
 	fi
 	exit "${EXIT_CODE}"
 }
-
-readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
-readonly MY_PID="${$}"
-
-readonly ETCDIR="/etc"
-readonly REPO_DIR_NAME="yum.repos.d"
-readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
-readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 
 function usage_exit() {
 	echo "Usage: $0 [-e] [-l]" 1>&2
@@ -94,6 +107,16 @@ ln -s /dummy "${_lockfile}" 2>/dev/null || {
 }
 trap 'rm "${_lockfile}"; exit' SIGHUP SIGINT SIGQUIT SIGTERM
 
+readonly TEMPDIR="/tmp/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}"
+readonly TEMPFILE_1="${TEMPDIR}/repolist1.tmp"
+readonly TEMPFILE_2="${TEMPDIR}/repolist2.tmp"
+readonly TEMPFILE_3="${TEMPDIR}/repolist3.tmp"
+readonly TEMPFILE_4="${TEMPDIR}/repolist4.tmp"
+readonly TEMPFILE_5="${TEMPDIR}/repolist5.tmp"
+readonly TEMPFILE_6="${TEMPDIR}/repolist6.tmp"
+rm -rf "${TEMPDIR}"
+mkdir -p "${TEMPDIR}"
+
 MANAGE_COMMAND=""
 
 DNF=0
@@ -105,20 +128,10 @@ if [ "${DNF}" -ne 0 ]; then
 	MANAGE_COMMAND=$(which dnf)
 else
 	echo "dnf not found. Error."
-	delete_lock_file_and_exit 2
+	delete_lock_file_and_exit "${TEMPDIR}" 2
 fi
 
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
-
-readonly TEMPDIR="/tmp/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}"
-readonly TEMPFILE_1="${TEMPDIR}/repolist1.tmp"
-readonly TEMPFILE_2="${TEMPDIR}/repolist2.tmp"
-readonly TEMPFILE_3="${TEMPDIR}/repolist3.tmp"
-readonly TEMPFILE_4="${TEMPDIR}/repolist4.tmp"
-readonly TEMPFILE_5="${TEMPDIR}/repolist5.tmp"
-readonly TEMPFILE_6="${TEMPDIR}/repolist6.tmp"
-rm -rf "${TEMPDIR}"
-mkdir -p "${TEMPDIR}"
 
 echo -e "Please use priority in steps of 5"
 echo -e " eg: base extras and updates can have priority 1 , epel can have priority 5 etc"
@@ -145,13 +158,13 @@ cat "${TEMPFILE_4}" | sed -e "s/\/.*//" >"${TEMPFILE_5}"
 #リポジトリID重複除去
 cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
-[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && rm -rf "${TEMPDIR}" && delete_lock_file_and_exit 0
+[ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && delete_lock_file_and_exit "${TEMPDIR}" 0
 
 #現状をバックアップ
-tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit 1
+tar -Jcf "${REPODIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPODIR}" || delete_lock_file_and_exit "${TEMPDIR}" 1
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit 1
+	tar -Jcf "${REPO_OVERRIDE_DIR}_${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" "${REPO_OVERRIDE_DIR}" || delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 
 echo "Enabled yum repos:"
@@ -182,12 +195,10 @@ for repo in $(cat "${TEMPFILE_6}"); do
 	DNF_RETURN="${?}"
 	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
 	if [ "${DNF_RETURN}" -ne 0 ]; then
-		dnf config-manager setopt "${repo}.priority=${priority}" || exit 10
+		dnf config-manager setopt "${repo}.priority=${priority}" || delete_lock_file_and_exit "${TEMPDIR}" 10
 	fi
 done
 
 get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}"
 
-rm -rf "${TEMPDIR}"
-
-delete_lock_file_and_exit 0
+delete_lock_file_and_exit "${TEMPDIR}" 0
