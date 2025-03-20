@@ -2,6 +2,23 @@
 
 #from https://support.sysally.net/projects/kb/wiki/Script_to_set_yum_priority#Script-to-set-yum-priority
 
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script must be run as root." >&2
+  exit 254
+fi
+
+readonly ROOT_HOME='/root'
+readonly ROOT_BASH_PROFILE_PATH="${ROOT_HOME}/.bash_profile"
+readonly ROOT_PROFILE_PATH="${ROOT_HOME}/.profile"
+
+if [ -f "${ROOT_BASH_PROFILE_PATH}" ]; then
+  source "${ROOT_BASH_PROFILE_PATH}" >/dev/null 2>&1 || exit 200
+elif [ -f "${ROOT_PROFILE_PATH}" ]; then
+  source "${ROOT_PROFILE_PATH}" >/dev/null 2>&1 || exit 210
+else
+  exit 220
+fi
+
 #このスクリプトの名前。
 readonly MY_NAME="$(basename "${0}")"
 
