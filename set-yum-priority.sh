@@ -36,9 +36,11 @@ readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 function delete_tempdir() {
 	local -r TEMP_DIR_PATH="${1}"
 	if [ -d "${TEMP_DIR_PATH}" ]; then
-		if ! rm -rf "${TEMP_DIR_PATH}"; then
+		rm -rf "${TEMP_DIR_PATH}" >/dev/null 2>&1
+		local -r RM_RETURN="${?}"
+		if [ 0 -ne "${RM_RETURN}" ]; then
 			echo "作業フォルダ削除失敗。戻り値はrmのものになる。作業フォルダ=${TEMP_DIR_PATH}"1 >&2
-			exit "${?}"
+			exit "${RM_RETURN}"
 		fi
 	fi
 	return 0
@@ -55,9 +57,11 @@ function delete_lock_file_and_exit() {
 		exit 100
 	fi
 	if [ -h "${_lockfile}" ]; then
-		if ! rm -f "${_lockfile}" >/dev/null 2>&1; then
+		rm -f "${_lockfile}" >/dev/null 2>&1
+		local -r RM_RETURN="${?}"
+		if [ 0 -ne "${RM_RETURN}" ]; then
 			echo "ロックファイル削除失敗。戻り値はrmのものになる。ロックファイル=${_lockfile}"1 >&2
-			exit "${?}"
+			exit "${RM_RETURN}"
 		fi
 	fi
 	exit "${EXIT_CODE}"
