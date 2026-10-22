@@ -94,12 +94,15 @@ function get_priority_info() {
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
 	echo "======================="
 	echo
-	echo "Priority parameter from repo command.(For dnf5 or later.)"
+	echo "Priority parameter from repo command."
 	echo "======================="
 	for repo in $(cat "${REPOSITORY_LIST}"); do
-		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
-		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
-		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
+		REPO_INFO_FROM_COMMAND=$(LC_ALL=C "${COMMAND}" --noplugins repoinfo "${repo}" 2>/dev/null)
+		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': *' '
+			/^Repo ID[[:space:]]*:/ || /^Repo-id[[:space:]]*:/ { repo_id = $2 }
+			/^(Priority|Repo-priority)[[:space:]]*:/ {
+				print "priority = " $2 " [" repo_id "]"
+			}'
 	done
 	echo "======================="
 	echo
@@ -162,13 +165,15 @@ else
 	delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 
-DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" --noplugins --dump-main-config 2>/dev/null) || {
-	echo "dnf の設定情報を取得できませんでした。" >&2
-	delete_lock_file_and_exit "${TEMPDIR}" 1
-}
+DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" --noplugins --dump-main-config 2>/dev/null)
 REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
 if [ -z "${REPOSDIR_SETTING}" ]; then
-	echo "dnf の設定情報から reposdir を取得できませんでした。" >&2
+	# DNF4 provides the main configuration through the config-manager plugin.
+	DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" config-manager --dump 2>/dev/null)
+	REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
+fi
+if [ -z "${REPOSDIR_SETTING}" ]; then
+	echo "dnf の設定情報から reposdir を取得できませんでした (--dump-main-config / config-manager --dump)。" >&2
 	delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 IFS=',' read -r -a CONFIGURED_REPO_DIRS <<< "${REPOSDIR_SETTING}"
