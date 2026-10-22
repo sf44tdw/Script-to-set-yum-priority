@@ -31,6 +31,7 @@ readonly MY_PID="${$}"
 readonly ETCDIR="/etc"
 readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 DNF_REPO_DIRS=()
+DNF_CONFIG_MANAGER_DUMP_AVAILABLE="f"
 
 function delete_tempdir() {
 	local -r TEMP_DIR_PATH="${1}"
@@ -98,11 +99,26 @@ function get_priority_info() {
 	echo "======================="
 	for repo in $(cat "${REPOSITORY_LIST}"); do
 		REPO_INFO_FROM_COMMAND=$(LC_ALL=C "${COMMAND}" --noplugins repoinfo "${repo}" 2>/dev/null)
-		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': *' '
+		REPO_PRIORITY_INFO=$(printf '%s\n' "${REPO_INFO_FROM_COMMAND}" | awk -F': *' '
 			/^Repo ID[[:space:]]*:/ || /^Repo-id[[:space:]]*:/ { repo_id = $2 }
 			/^(Priority|Repo-priority)[[:space:]]*:/ {
 				print "priority = " $2 " [" repo_id "]"
-			}'
+			}')
+		if [ -z "${REPO_PRIORITY_INFO}" ] && [ "${DNF_CONFIG_MANAGER_DUMP_AVAILABLE}" = "t" ]; then
+			REPO_CONFIG_FROM_COMMAND=$(LC_ALL=C "${COMMAND}" config-manager --dump "${repo}" 2>/dev/null)
+			REPO_PRIORITY_INFO=$(printf '%s\n' "${REPO_CONFIG_FROM_COMMAND}" | awk -F' *= *' -v repo_id="${repo}" '
+				/^\[[^]]+\][[:space:]]*$/ {
+					section = $0
+					sub(/^\[/, "", section)
+					sub(/\][[:space:]]*$/, "", section)
+					next
+				}
+				section == repo_id && $1 == "priority" {
+					print "priority = " $2 " [" repo_id "]"
+					exit
+				}')
+		fi
+		[ -n "${REPO_PRIORITY_INFO}" ] && echo "${REPO_PRIORITY_INFO}"
 	done
 	echo "======================="
 	echo
@@ -171,6 +187,7 @@ if [ -z "${REPOSDIR_SETTING}" ]; then
 	# DNF4 provides the main configuration through the config-manager plugin.
 	DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" config-manager --dump 2>/dev/null)
 	REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
+	[ -n "${REPOSDIR_SETTING}" ] && DNF_CONFIG_MANAGER_DUMP_AVAILABLE="t"
 fi
 if [ -z "${REPOSDIR_SETTING}" ]; then
 	echo "dnf の設定情報から reposdir を取得できませんでした (--dump-main-config / config-manager --dump)。" >&2
