@@ -29,9 +29,8 @@ readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
 readonly MY_PID="${$}"
 
 readonly ETCDIR="/etc"
-readonly REPO_DIR_NAME="yum.repos.d"
-readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
 readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
+DNF_REPO_DIRS=()
 
 function delete_tempdir() {
 	local -r TEMP_DIR_PATH="${1}"
@@ -78,7 +77,18 @@ function usage_exit() {
 function get_priority_info() {
 	local -r REPOSITORY_LIST="${1}"
 	local -r COMMAND="${2}"
-	local -r PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n)
+	local -a REPO_FILES=()
+	local REPO_DIR
+	local REPO_FILE
+	for REPO_DIR in "${DNF_REPO_DIRS[@]}"; do
+		for REPO_FILE in "${REPO_DIR}"/*.repo; do
+			[ -f "${REPO_FILE}" ] && REPO_FILES+=("${REPO_FILE}")
+		done
+	done
+	local PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=""
+	if [ "${#REPO_FILES[@]}" -gt 0 ]; then
+		PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" "${REPO_FILES[@]}" | sort -k3n)
+	fi
 	echo "Priority parameter from repo file."
 	echo "======================="
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
@@ -152,6 +162,26 @@ else
 	delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 
+DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" --noplugins --dump-main-config 2>/dev/null) || {
+	echo "dnf の設定情報を取得できませんでした。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
+}
+REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
+if [ -z "${REPOSDIR_SETTING}" ]; then
+	echo "dnf の設定情報から reposdir を取得できませんでした。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
+fi
+IFS=',' read -r -a CONFIGURED_REPO_DIRS <<< "${REPOSDIR_SETTING}"
+for REPO_DIR in "${CONFIGURED_REPO_DIRS[@]}"; do
+	REPO_DIR="${REPO_DIR#"${REPO_DIR%%[![:space:]]*}"}"
+	REPO_DIR="${REPO_DIR%"${REPO_DIR##*[![:space:]]}"}"
+	[ -n "${REPO_DIR}" ] && DNF_REPO_DIRS+=("${REPO_DIR}")
+done
+if [ "${#DNF_REPO_DIRS[@]}" -eq 0 ]; then
+	echo "dnf の設定情報に有効な reposdir がありません。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
+fi
+
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
 
 echo -e "Please use priority in steps of 5"
@@ -181,27 +211,20 @@ cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
 [ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && delete_lock_file_and_exit "${TEMPDIR}" 0
 
-#現状をバックアップするコマンドを生成。
-TAR_CMD='tar'
-TAR_CMD+=' '
-TAR_CMD+='Jcf'
-TAR_CMD+=' '
-TAR_CMD+='"'
-TAR_CMD+="${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz"
-TAR_CMD+='"'
-TAR_CMD+=' '
-TAR_CMD+='"'
-TAR_CMD+="${REPODIR}"
-TAR_CMD+='"'
+#現状をバックアップする。
+REPO_BACKUP_PATHS=()
+for REPO_DIR in "${DNF_REPO_DIRS[@]}"; do
+	[ -d "${REPO_DIR}" ] && REPO_BACKUP_PATHS+=("${REPO_DIR}")
+done
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	TAR_CMD+=' '
-	TAR_CMD+='"'
-	TAR_CMD+="${REPO_OVERRIDE_DIR}"
-	TAR_CMD+='"'
+	REPO_BACKUP_PATHS+=("${REPO_OVERRIDE_DIR}")
 fi
-#現状をバックアップ。
-eval "${TAR_CMD}" || delete_lock_file_and_exit "${TEMPDIR}" 2
+if [ "${#REPO_BACKUP_PATHS[@]}" -eq 0 ]; then
+	echo "バックアップ対象のdnfリポジトリ設定ディレクトリがありません。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 2
+fi
+tar -Jcf "${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" -- "${REPO_BACKUP_PATHS[@]}" || delete_lock_file_and_exit "${TEMPDIR}" 2
 
 echo "Enabled yum repos:"
 echo "======================="
