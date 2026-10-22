@@ -31,6 +31,7 @@ readonly MY_PID="${$}"
 readonly ETCDIR="/etc"
 readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
 DNF_REPO_DIRS=()
+#dnf4(--dump-main-config非対応でconfig-manager --dumpを使う環境)の場合に"t"になる。
 DNF_CONFIG_MANAGER_DUMP_AVAILABLE="f"
 
 function delete_tempdir() {
@@ -271,12 +272,11 @@ for repo in $(cat "${TEMPFILE_6}"); do
 			priority="0"
 		fi
 	done
-	DNF_RETURN=0
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save
-	DNF_RETURN="${?}"
-	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
-	if [ "${DNF_RETURN}" -ne 0 ]; then
-		dnf config-manager setopt "${repo}.priority=${priority}" || delete_lock_file_and_exit "${TEMPDIR}" 10
+	#dnf5ではコマンドラインの形式が変わったので、dnf4かdnf5かに応じて使い分ける。
+	if [ "${DNF_CONFIG_MANAGER_DUMP_AVAILABLE}" = "t" ]; then
+		"${MANAGE_COMMAND}" config-manager --setopt="${repo}.priority=${priority}" --save || delete_lock_file_and_exit "${TEMPDIR}" 10
+	else
+		"${MANAGE_COMMAND}" config-manager setopt "${repo}.priority=${priority}" || delete_lock_file_and_exit "${TEMPDIR}" 10
 	fi
 done
 
