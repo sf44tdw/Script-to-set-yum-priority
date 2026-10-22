@@ -29,7 +29,8 @@ readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
 readonly MY_PID="${$}"
 
 readonly ETCDIR="/etc"
-readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
+#dnf5のリポジトリ設定上書き用ディレクトリ。dnfの設定情報からは取得できないため固定値とする。
+readonly REPO_OVERRIDE_DIRS=("/etc/dnf/repos.override.d" "/usr/share/dnf5/repos.override.d")
 DNF_REPO_DIRS=()
 #dnf4(--dump-main-config非対応でconfig-manager --dumpを使う環境)の場合に"t"になる。
 DNF_CONFIG_MANAGER_DUMP_AVAILABLE="f"
@@ -240,9 +241,9 @@ for REPO_DIR in "${DNF_REPO_DIRS[@]}"; do
 	[ -d "${REPO_DIR}" ] && REPO_BACKUP_PATHS+=("${REPO_DIR}")
 done
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
-if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	REPO_BACKUP_PATHS+=("${REPO_OVERRIDE_DIR}")
-fi
+for REPO_OVERRIDE_DIR in "${REPO_OVERRIDE_DIRS[@]}"; do
+	[ -d "${REPO_OVERRIDE_DIR}" ] && REPO_BACKUP_PATHS+=("${REPO_OVERRIDE_DIR}")
+done
 if [ "${#REPO_BACKUP_PATHS[@]}" -eq 0 ]; then
 	echo "バックアップ対象のdnfリポジトリ設定ディレクトリがありません。" >&2
 	delete_lock_file_and_exit "${TEMPDIR}" 2
