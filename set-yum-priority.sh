@@ -29,9 +29,10 @@ readonly MY_EXEC_DATE="$(date +%Y%m%d-%H%M%S)"
 readonly MY_PID="${$}"
 
 readonly ETCDIR="/etc"
-readonly REPO_DIR_NAME="yum.repos.d"
-readonly REPODIR="${ETCDIR}/${REPO_DIR_NAME}"
 readonly REPO_OVERRIDE_DIR="/etc/dnf/repos.override.d"
+DNF_REPO_DIRS=()
+#dnf4(--dump-main-config非対応でconfig-manager --dumpを使う環境)の場合に"t"になる。
+DNF_CONFIG_MANAGER_DUMP_AVAILABLE="f"
 
 function delete_tempdir() {
 	local -r TEMP_DIR_PATH="${1}"
@@ -78,18 +79,47 @@ function usage_exit() {
 function get_priority_info() {
 	local -r REPOSITORY_LIST="${1}"
 	local -r COMMAND="${2}"
-	local -r PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" ${REPODIR}/*.repo | sort -k3n)
+	local -a REPO_FILES=()
+	local REPO_DIR
+	local REPO_FILE
+	for REPO_DIR in "${DNF_REPO_DIRS[@]}"; do
+		for REPO_FILE in "${REPO_DIR}"/*.repo; do
+			[ -f "${REPO_FILE}" ] && REPO_FILES+=("${REPO_FILE}")
+		done
+	done
+	local PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=""
+	if [ "${#REPO_FILES[@]}" -gt 0 ]; then
+		PRIORITY_LIST_FROM_ORIGINAL_REPOFILE=$(sed -n -e "/^\[/h; /priority *=/{ G; s/\n/ /; s/ity=/ity = /; p }" "${REPO_FILES[@]}" | sort -k3n)
+	fi
 	echo "Priority parameter from repo file."
 	echo "======================="
 	echo "${PRIORITY_LIST_FROM_ORIGINAL_REPOFILE}"
 	echo "======================="
 	echo
-	echo "Priority parameter from repo command.(For dnf5 or later.)"
+	echo "Priority parameter from repo command."
 	echo "======================="
 	for repo in $(cat "${REPOSITORY_LIST}"); do
-		GET_COMMAND="${COMMAND} repo info ${repo} 2>/dev/null"
-		REPO_INFO_FROM_COMMAND=$(eval "${GET_COMMAND}")
-		echo "${REPO_INFO_FROM_COMMAND}" | awk -F': ' '/^Repo ID/ { repo_id = $2 } /^Priority/ { print "priority = " $2 " [" repo_id "]" }'
+		REPO_INFO_FROM_COMMAND=$(LC_ALL=C "${COMMAND}" --noplugins repoinfo "${repo}" 2>/dev/null)
+		REPO_PRIORITY_INFO=$(printf '%s\n' "${REPO_INFO_FROM_COMMAND}" | awk -F': *' '
+			/^Repo ID[[:space:]]*:/ || /^Repo-id[[:space:]]*:/ { repo_id = $2 }
+			/^(Priority|Repo-priority)[[:space:]]*:/ {
+				print "priority = " $2 " [" repo_id "]"
+			}')
+		if [ -z "${REPO_PRIORITY_INFO}" ] && [ "${DNF_CONFIG_MANAGER_DUMP_AVAILABLE}" = "t" ]; then
+			REPO_CONFIG_FROM_COMMAND=$(LC_ALL=C "${COMMAND}" config-manager --dump "${repo}" 2>/dev/null)
+			REPO_PRIORITY_INFO=$(printf '%s\n' "${REPO_CONFIG_FROM_COMMAND}" | awk -F' *= *' -v repo_id="${repo}" '
+				/^\[[^]]+\][[:space:]]*$/ {
+					section = $0
+					sub(/^\[/, "", section)
+					sub(/\][[:space:]]*$/, "", section)
+					next
+				}
+				section == repo_id && $1 == "priority" {
+					print "priority = " $2 " [" repo_id "]"
+					exit
+				}')
+		fi
+		[ -n "${REPO_PRIORITY_INFO}" ] && echo "${REPO_PRIORITY_INFO}"
 	done
 	echo "======================="
 	echo
@@ -152,6 +182,29 @@ else
 	delete_lock_file_and_exit "${TEMPDIR}" 1
 fi
 
+DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" --noplugins --dump-main-config 2>/dev/null)
+REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
+if [ -z "${REPOSDIR_SETTING}" ]; then
+	# DNF4 provides the main configuration through the config-manager plugin.
+	DNF_MAIN_CONFIG=$("${MANAGE_COMMAND}" config-manager --dump 2>/dev/null)
+	REPOSDIR_SETTING=$(printf '%s\n' "${DNF_MAIN_CONFIG}" | awk -F' *= *' '$1 == "reposdir" { print $2; exit }')
+	[ -n "${REPOSDIR_SETTING}" ] && DNF_CONFIG_MANAGER_DUMP_AVAILABLE="t"
+fi
+if [ -z "${REPOSDIR_SETTING}" ]; then
+	echo "dnf の設定情報から reposdir を取得できませんでした (--dump-main-config / config-manager --dump)。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
+fi
+IFS=',' read -r -a CONFIGURED_REPO_DIRS <<< "${REPOSDIR_SETTING}"
+for REPO_DIR in "${CONFIGURED_REPO_DIRS[@]}"; do
+	REPO_DIR="${REPO_DIR#"${REPO_DIR%%[![:space:]]*}"}"
+	REPO_DIR="${REPO_DIR%"${REPO_DIR##*[![:space:]]}"}"
+	[ -n "${REPO_DIR}" ] && DNF_REPO_DIRS+=("${REPO_DIR}")
+done
+if [ "${#DNF_REPO_DIRS[@]}" -eq 0 ]; then
+	echo "dnf の設定情報に有効な reposdir がありません。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 1
+fi
+
 readonly REPOLIST_COMMAND="${MANAGE_COMMAND} --noplugins repolist"
 
 echo -e "Please use priority in steps of 5"
@@ -181,27 +234,20 @@ cat "${TEMPFILE_5}" | sort | uniq >"${TEMPFILE_6}"
 
 [ "${ENABLE_l}" = "t" ] && get_priority_info "${TEMPFILE_6}" "${MANAGE_COMMAND}" && delete_lock_file_and_exit "${TEMPDIR}" 0
 
-#現状をバックアップするコマンドを生成。
-TAR_CMD='tar'
-TAR_CMD+=' '
-TAR_CMD+='Jcf'
-TAR_CMD+=' '
-TAR_CMD+='"'
-TAR_CMD+="${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz"
-TAR_CMD+='"'
-TAR_CMD+=' '
-TAR_CMD+='"'
-TAR_CMD+="${REPODIR}"
-TAR_CMD+='"'
+#現状をバックアップする。
+REPO_BACKUP_PATHS=()
+for REPO_DIR in "${DNF_REPO_DIRS[@]}"; do
+	[ -d "${REPO_DIR}" ] && REPO_BACKUP_PATHS+=("${REPO_DIR}")
+done
 #dnf5で、変更する値は書き換え用のファイルに記載するようになったのでバックアップ対象に追加。
 if [ -d "${REPO_OVERRIDE_DIR}" ]; then
-	TAR_CMD+=' '
-	TAR_CMD+='"'
-	TAR_CMD+="${REPO_OVERRIDE_DIR}"
-	TAR_CMD+='"'
+	REPO_BACKUP_PATHS+=("${REPO_OVERRIDE_DIR}")
 fi
-#現状をバックアップ。
-eval "${TAR_CMD}" || delete_lock_file_and_exit "${TEMPDIR}" 2
+if [ "${#REPO_BACKUP_PATHS[@]}" -eq 0 ]; then
+	echo "バックアップ対象のdnfリポジトリ設定ディレクトリがありません。" >&2
+	delete_lock_file_and_exit "${TEMPDIR}" 2
+fi
+tar -Jcf "${ETCDIR}/${MY_NAME}_${MY_EXEC_DATE}_${MY_PID}.tar.xz" -- "${REPO_BACKUP_PATHS[@]}" || delete_lock_file_and_exit "${TEMPDIR}" 2
 
 echo "Enabled yum repos:"
 echo "======================="
@@ -226,12 +272,11 @@ for repo in $(cat "${TEMPFILE_6}"); do
 			priority="0"
 		fi
 	done
-	DNF_RETURN=0
-	dnf config-manager --setopt="${repo}.priority=${priority}" --save
-	DNF_RETURN="${?}"
-	#dnf5ではコマンドラインの形式が変わったので、旧コマンドで失敗したら新コマンドでリトライする。
-	if [ "${DNF_RETURN}" -ne 0 ]; then
-		dnf config-manager setopt "${repo}.priority=${priority}" || delete_lock_file_and_exit "${TEMPDIR}" 10
+	#dnf5ではコマンドラインの形式が変わったので、dnf4かdnf5かに応じて使い分ける。
+	if [ "${DNF_CONFIG_MANAGER_DUMP_AVAILABLE}" = "t" ]; then
+		"${MANAGE_COMMAND}" config-manager --setopt="${repo}.priority=${priority}" --save || delete_lock_file_and_exit "${TEMPDIR}" 10
+	else
+		"${MANAGE_COMMAND}" config-manager setopt "${repo}.priority=${priority}" || delete_lock_file_and_exit "${TEMPDIR}" 10
 	fi
 done
 
